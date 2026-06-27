@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}قائمة الملفات{% endblock %}
+{% block page_title %}قائمة الملفات والتعاقدات{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('files.add_contract') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-file-earmark-plus me-1"></i>تعاقد جديد
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <form method="GET" class="d-flex gap-2 flex-wrap align-items-center">
+            <input type="text" name="q" class="form-control form-control-sm" placeholder="بحث..." value="{{ q }}" style="width:220px;">
+            <select name="status" class="form-select form-select-sm" style="width:130px;">
+                <option value="all" {{ 'selected' if status == 'all' else '' }}>جميع الملفات</option>
+                <option value="active" {{ 'selected' if status == 'active' else '' }}>نشط</option>
+                <option value="closed" {{ 'selected' if status == 'closed' else '' }}>مغلق</option>
+            </select>
+            <select name="visa_status" class="form-select form-select-sm" style="width:160px;">
+                <option value="all" {{ 'selected' if visa_status == 'all' else '' }}>كل حالات التأشيرة</option>
+                <option value="under_review" {{ 'selected' if visa_status == 'under_review' else '' }}>تحت المراجعة</option>
+                <option value="accepted" {{ 'selected' if visa_status == 'accepted' else '' }}>مقبول</option>
+                <option value="rejected" {{ 'selected' if visa_status == 'rejected' else '' }}>مرفوض</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">بحث</button>
+            {% if q or status != 'all' %}<a href="{{ url_for('files.contracts_list') }}" class="btn btn-outline-secondary btn-sm">مسح</a>{% endif %}
+            <span class="text-muted small">{{ contracts|length }} ملف</span>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>رقم الملف</th>
+                        <th>الاسم</th>
+                        <th>الهاتف</th>
+                        <th>الدولة</th>
+                        <th>التكلفة</th>
+                        <th>المدفوع</th>
+                        <th>المتبقي</th>
+                        <th>حالة التأشيرة</th>
+                        <th>حالة الملف</th>
+                        <th>التبصيم</th>
+                        <th>التاريخ</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contracts %}
+                    <tr {% if c.status == 'closed' %}style="opacity:0.65;"{% endif %}>
+                        <td><span class="badge bg-primary">{{ c.file_number }}</span></td>
+                        <td><a href="{{ url_for('files.contract_profile', contract_id=c.id) }}" class="fw-bold text-decoration-none">{{ c.client_name }}</a></td>
+                        <td>{{ c.client_phone }}</td>
+                        <td>{{ c.country }}</td>
+                        <td>{{ "{:,.0f}".format(c.total_cost) }}</td>
+                        <td class="text-success fw-bold">{{ "{:,.0f}".format(c.get_total_paid()) }}</td>
+                        <td class="{{ 'text-danger fw-bold' if c.get_remaining() > 0 else 'text-success' }}">{{ "{:,.0f}".format(c.get_remaining()) }}</td>
+                        <td>
+                            {% if c.visa_status == 'accepted' %}
+                            <span class="badge bg-success" style="font-size:0.72rem;">مقبول</span>
+                            {% elif c.visa_status == 'rejected' %}
+                            <span class="badge bg-danger" style="font-size:0.72rem;">مرفوض</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark" style="font-size:0.72rem;">تحت المراجعة</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.status == 'active' %}
+                            <span class="badge bg-success" style="font-size:0.72rem;">نشط</span>
+                            {% else %}
+                            <span class="badge bg-secondary" style="font-size:0.72rem;">مغلق</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width:220px;">{{ c.fingerprint_location or '-' }}</div>
+                            <div class="mt-1">
+                                {% if c.fingerprint_date %}
+                                <span class="badge bg-warning text-dark" style="font-size:0.8rem; padding:0.55em 0.75em; border-radius:10px; display:inline-block;">{{ c.fingerprint_date.strftime('%Y-%m-%d %H:%M') }}</span>
+                                {% else %}-{% endif %}
+                            </div>
+                        </td>
+                        <td><small class="text-muted">{{ c.created_at.strftime('%Y-%m-%d') }}</small></td>
+                        <td>
+                            <a href="{{ url_for('files.contract_profile', contract_id=c.id) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="12" class="text-center py-5 text-muted">
+                        <i class="bi bi-folder-x" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+                        لا توجد ملفات
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
