@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}تعديل عميل{% endblock %}
+{% block page_title %}تعديل بيانات العميل{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-pencil-square" style="color:#2563EB;font-size:1.2rem;"></i>
+                <h6 class="mb-0 fw-bold">تعديل بيانات: {{ customer.full_name }}</h6>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('sales.edit_customer', customer_id=customer.id) }}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">رقم الهاتف <span class="text-danger">*</span></label>
+                            <input type="text" name="phone" class="form-control" value="{{ customer.phone }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">اسم العميل <span class="text-danger">*</span></label>
+                            <input type="text" name="full_name" class="form-control" value="{{ customer.full_name }}" required>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">الدول المطلوبة</label>
+                            <div id="countries-container">
+                                {% for country in customer.get_countries_list() %}
+                                <div class="d-flex gap-2 mb-2">
+                                    <input type="text" name="countries" class="form-control" value="{{ country }}">
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.remove()"><i class="bi bi-trash"></i></button>
+                                </div>
+                                {% else %}
+                                <div class="d-flex gap-2 mb-2">
+                                    <input type="text" name="countries" class="form-control" placeholder="أدخل دولة">
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.remove()"><i class="bi bi-trash"></i></button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-outline-success btn-sm mt-1" onclick="addCountry()">
+                                <i class="bi bi-plus me-1"></i>إضافة دولة
+                            </button>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">كشف حساب بنكي</label>
+                            <select name="has_bank_statement" class="form-select">
+                                <option value="no" {{ 'selected' if not customer.has_bank_statement else '' }}>لا</option>
+                                <option value="yes" {{ 'selected' if customer.has_bank_statement else '' }}>نعم</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">الاهتمام</label>
+                            <select name="interest_level" class="form-select" id="interestSelect" onchange="toggleInterest()">
+                                <option value="" {{ 'selected' if not customer.interest_level else '' }}>غير محدد</option>
+                                <option value="interested" {{ 'selected' if customer.interest_level == 'interested' else '' }}>مهتم</option>
+                                <option value="not_interested" {{ 'selected' if customer.interest_level == 'not_interested' else '' }}>غير مهتم</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 {{ 'd-none' if customer.interest_level != 'interested' else '' }}" id="interest_pct_div">
+                            <label class="form-label">نسبة الاهتمام (%)</label>
+                            <input type="number" name="interest_percentage" class="form-control" min="0" max="100" value="{{ customer.interest_percentage or '' }}">
+                        </div>
+
+                        <div class="col-12 {{ 'd-none' if customer.interest_level != 'not_interested' else '' }}" id="not_interested_div">
+                            <label class="form-label">سبب عدم الاهتمام</label>
+                            <input type="text" name="not_interested_reason" class="form-control" value="{{ customer.not_interested_reason or '' }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">موعد المقابلة</label>
+                            <input type="datetime-local" name="interview_date" class="form-control"
+                                value="{{ customer.interview_date.strftime('%Y-%m-%dT%H:%M') if customer.interview_date else '' }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">موعد المتابعة</label>
+                            <input type="datetime-local" name="followup_date" class="form-control"
+                                value="{{ customer.followup_date.strftime('%Y-%m-%dT%H:%M') if customer.followup_date else '' }}">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">ملاحظات</label>
+                            <textarea name="notes" class="form-control" rows="3">{{ customer.notes or '' }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>حفظ التغييرات</button>
+                        <a href="{{ url_for('sales.customer_profile', customer_id=customer.id) }}" class="btn btn-outline-secondary">إلغاء</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addCountry() {
+    const div = document.createElement('div');
+    div.className = 'd-flex gap-2 mb-2';
+    div.innerHTML = `<input type="text" name="countries" class="form-control" placeholder="أدخل دولة">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.remove()"><i class="bi bi-trash"></i></button>`;
+    document.getElementById('countries-container').appendChild(div);
+}
+function toggleInterest() {
+    const val = document.getElementById('interestSelect').value;
+    document.getElementById('interest_pct_div').classList.toggle('d-none', val !== 'interested');
+    document.getElementById('not_interested_div').classList.toggle('d-none', val !== 'not_interested');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,998 @@
+{% extends 'base.html' %}
+{% block title %}ملف {{ contract.file_number }}{% endblock %}
+{% block page_title %}ملف التعاقد{% endblock %}
+
+{% block extra_css %}
+<style>
+.section-card { margin-bottom: 20px; }
+.timeline-item { display:flex; gap:14px; padding-bottom:16px; position:relative; }
+.timeline-item::before { content:''; position:absolute; right:17px; top:30px; bottom:0; width:2px; background:#E2E8F0; }
+.timeline-item:last-child::before { display:none; }
+.timeline-dot { width:34px; height:34px; border-radius:50%; background:#EFF6FF; border:2px solid #2563EB; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.8rem; color:#2563EB; }
+.info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #F1F5F9; font-size:0.88rem; }
+.info-row:last-child { border-bottom:none; }
+.info-label { color:#64748B; font-weight:600; }
+.info-value { font-weight:700; color:#1E293B; }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<!-- Header -->
+<div class="page-header mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <div>
+            <h4 class="mb-0 fw-bold">
+                <span class="badge bg-primary me-2">{{ contract.file_number }}</span>
+                {{ contract.client_name }}
+            </h4>
+            <small class="text-muted">{{ contract.client_phone }} | {{ contract.country }}</small>
+        </div>
+        {% if contract.status == 'closed' %}
+        <span class="badge bg-secondary fs-6">ملف مغلق</span>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('files.contracts_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-right me-1"></i>رجوع
+        </a>
+        <button id="printProfileBtn" class="btn btn-outline-secondary btn-sm" onclick="printProfile()"
+            data-company-name="Movida CRM System"
+            data-company-logo="{{ url_for('auth.serve_logo') }}"
+            data-client-img="{{ url_for('files.serve_upload', filepath=contract.client_image|replace('\\','/')) if contract.client_image else '' }}"
+            data-file-number="{{ contract.file_number }}"
+            data-name="{{ contract.client_name|e }}"
+            data-phone="{{ contract.client_phone|e }}"
+            data-country="{{ (contract.country or '-')|e }}"
+            data-location="{{ (contract.fingerprint_location or '-')|e }}"
+            data-last-note="{{ (latest_note.content|replace('\n',' ')|e) if latest_note else '-' }}"
+            data-amount="{{ ("{:,.0f} ج.م".format(contract.total_cost)) if contract.total_cost is not none else '' }}"
+            data-paid="{{ ("{:,.0f} ج.م".format(contract.get_total_paid())) }}"
+            data-remaining="{{ ("{:,.0f} ج.م".format(contract.get_remaining())) }}"
+            data-created="{{ (contract.created_at.strftime('%Y-%m-%d') if contract.created_at else '') }}">
+            <i class="bi bi-printer me-1"></i>طباعة الملف
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column -->
+    <div class="col-lg-4">
+        <!-- Client Card -->
+        <div class="card section-card">
+            <div class="card-body text-center p-4">
+                {% if contract.client_image %}
+                <img id="client-photo" src="{{ url_for('files.serve_upload', filepath=contract.client_image|replace('\\','/')) }}"
+                     class="rounded-circle mb-3" style="width:120px;height:120px;object-fit:cover;">
+                {% else %}
+                <div id="client-photo" style="width:120px;height:120px;border-radius:50%;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:3rem;font-weight:800;color:#2563EB;margin:0 auto 12px;">
+                    {{ contract.client_name[0] }}
+                </div>
+                {% endif %}
+                {% if contract.status == 'active' %}
+                <form method="POST" action="{{ url_for('files.upload_client_image', contract_id=contract.id) }}" enctype="multipart/form-data" class="mt-2">
+                    <div class="d-flex gap-2 justify-content-center">
+                        <input type="file" name="client_image" id="client_image_input" accept="image/*" class="form-control form-control-sm" style="max-width:220px;">
+                        <button type="submit" class="btn btn-primary btn-sm">رفع الصورة</button>
+                    </div>
+                </form>
+                {% endif %}
+                <h5 class="fw-bold mb-1">{{ contract.client_name }}</h5>
+                <div class="text-muted mb-1"><i class="bi bi-phone me-1"></i>{{ contract.client_phone }}</div>
+                <div class="text-muted mb-2"><i class="bi bi-globe me-1"></i>{{ contract.country }}</div>
+                {% if contract.sales_employee_name %}
+                <small class="text-muted">موظف السيلز: <strong>{{ contract.sales_employee_name }}</strong></small>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Payment Summary -->
+        <div class="card section-card">
+            <div class="card-header"><h6 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2" style="color:#10B981;"></i>ملخص الدفعات</h6></div>
+            <div class="card-body">
+                <div class="info-row">
+                    <span class="info-label">إجمالي المعاملة</span>
+                    <span class="info-value text-primary">{{ "{:,.0f}".format(contract.total_cost) }} ج.م</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">المدفوع</span>
+                    <span class="info-value text-success">{{ "{:,.0f}".format(contract.get_total_paid()) }} ج.م</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">المتبقي</span>
+                    <span class="info-value text-danger">{{ "{:,.0f}".format(contract.get_remaining()) }} ج.م</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">عدد الدفعات المقررة</span>
+                    <span class="info-value">{{ contract.num_payments }}</span>
+                </div>
+                {% set payment_percentage = ((contract.get_total_paid() / contract.total_cost * 100)|round|int) if contract.total_cost > 0 else 0 %}
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="text-muted">نسبة السداد</small>
+                        <small class="fw-bold">{{ payment_percentage }}%</small>
+                    </div>
+                    <div class="progress" style="height:8px;border-radius:4px;">
+                        <div class="progress-bar bg-success" style="width:0;" data-progress="{{ payment_percentage }}"></div>
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    {% if contract.get_payment_status() == 'complete' %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>مكتمل</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>غير مكتمل</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Fingerprint -->
+        <div class="card section-card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-fingerprint me-2" style="color:#EF4444;"></i>التبصيم</h6>
+                {% if contract.status == 'active' %}
+                <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#fingerprintModal">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="info-row">
+                    <span class="info-label">المكان</span>
+                    <span class="info-value">{{ contract.fingerprint_location or '-' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">الموعد</span>
+                    <span class="info-value">
+                        {% if contract.fingerprint_date %}
+                        <span class="badge bg-danger">{{ contract.fingerprint_date.strftime('%Y-%m-%d %H:%M') }}</span>
+                        {% else %}-{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visa Status -->
+        <div class="card section-card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-passport me-2" style="color:#7C3AED;"></i>حالة التأشيرة</h6>
+                {% if contract.status == 'active' %}
+                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#visaModal">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body text-center">
+                {% if contract.visa_status == 'accepted' %}
+                <div class="mb-2"><i class="bi bi-check-circle-fill text-success" style="font-size:2.5rem;"></i></div>
+                <div class="fw-bold text-success fs-6">تم قبول التأشيرة</div>
+                {% if contract.visa_image %}
+                <a href="{{ url_for('files.serve_upload', filepath=contract.visa_image) }}" target="_blank" class="btn btn-outline-success btn-sm mt-2">
+                    <i class="bi bi-image me-1"></i>عرض التأشيرة
+                </a>
+                {% endif %}
+                {% elif contract.visa_status == 'rejected' %}
+                <div class="mb-2"><i class="bi bi-x-circle-fill text-danger" style="font-size:2.5rem;"></i></div>
+                <div class="fw-bold text-danger fs-6">تم رفض التأشيرة</div>
+                {% if contract.rejection_file %}
+                <a href="{{ url_for('files.serve_upload', filepath=contract.rejection_file) }}" target="_blank" class="btn btn-outline-danger btn-sm mt-2">
+                    <i class="bi bi-file-earmark me-1"></i>ملف الرفض
+                </a>
+                {% endif %}
+                {% if contract.status == 'active' %}
+                <div class="d-flex gap-2 mt-3 justify-content-center">
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal">إلغاء المعاملة</button>
+                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reapplyModal">التقديم مرة أخرى</button>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="mb-2"><i class="bi bi-hourglass-split text-warning" style="font-size:2.5rem;"></i></div>
+                <div class="fw-bold text-warning fs-6">تحت المراجعة</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Contract Status Actions -->
+        {% if contract.status == 'active' %}
+        <div class="card section-card border-danger">
+            <div class="card-header bg-danger bg-opacity-10">
+                <h6 class="mb-0 fw-bold text-danger"><i class="bi bi-gear me-2"></i>إجراءات الملف</h6>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                    <i class="bi bi-x-circle me-1"></i>إغلاق الملف
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-secondary text-center">
+            <i class="bi bi-archive me-2"></i>هذا الملف مغلق
+            {% if contract.closed_at %}
+            <div class="small mt-1">{{ contract.closed_at.strftime('%Y-%m-%d') }}</div>
+            {% endif %}
+            {% if contract.refund_amount %}
+            <div class="small">المبلغ المسترد: {{ "{:,.0f}".format(contract.refund_amount) }} ج.م</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-lg-8">
+        <!-- Payments -->
+        <div class="card section-card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-credit-card me-2" style="color:#10B981;"></i>الدفعات</h6>
+                {% if contract.status == 'active' %}
+                <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+                    <i class="bi bi-plus-lg me-1"></i>إضافة دفعة
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>#</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th><th>الموظف</th><th>الإجراءات</th></tr></thead>
+                        <tbody>
+                            {% for p in payments %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><strong class="text-success">{{ "{:,.0f}".format(p.amount) }} ج.م</strong></td>
+                                <td><small>{{ p.payment_date.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td><small class="text-muted">{{ p.notes or '-' }}</small></td>
+                                <td><small>{{ p.employee.full_name }}</small></td>
+                                <td>
+                                    {% if contract.status == 'active' %}
+                                    {% set payment_notes = (p.notes or '')|replace('\n', ' ')|e %}
+                                    <button class="btn btn-outline-warning btn-sm" data-action="edit-payment" data-payment-id="{{ p.id }}" data-payment-amount="{{ p.amount }}" data-payment-notes="{{ payment_notes }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('files.delete_payment', contract_id=contract.id, payment_id=p.id) }}" class="d-inline" onsubmit="return confirm('حذف هذه الدفعة؟')">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center py-3 text-muted">لا توجد دفعات بعد</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documents -->
+        <div class="card section-card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-folder2-open me-2" style="color:#2563EB;"></i>المستندات</h6>
+                {% if contract.status == 'active' %}
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+                    <i class="bi bi-upload me-1"></i>رفع ملف
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>اسم الملف</th><th>النوع</th><th>رُفع بواسطة</th><th>التاريخ</th><th>الإجراءات</th></tr></thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td>
+                                    {% set ext_icons = {'pdf': 'bi-file-pdf text-danger', 'jpg': 'bi-file-image text-success', 'jpeg': 'bi-file-image text-success', 'png': 'bi-file-image text-success', 'docx': 'bi-file-word text-primary', 'xlsx': 'bi-file-excel text-success'} %}
+                                    <i class="bi {{ ext_icons.get(doc.file_type, 'bi-file') }} me-2"></i>
+                                    {{ doc.name }}
+                                </td>
+                                <td><span class="badge bg-light text-dark border">{{ doc.file_type|upper if doc.file_type else '-' }}</span></td>
+                                <td><small>{{ doc.uploaded_by.full_name }}</small></td>
+                                <td><small class="text-muted">{{ doc.uploaded_at.strftime('%Y-%m-%d') }}</small></td>
+                                <td>
+                                    <a href="{{ url_for('files.serve_upload', filepath=doc.filename) }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('files.serve_upload', filepath=doc.filename) }}" download class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    {% if contract.status == 'active' %}
+                                    <form method="POST" action="{{ url_for('files.delete_document', contract_id=contract.id, doc_id=doc.id) }}" class="d-inline" onsubmit="return confirm('حذف هذا الملف؟')">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-3 text-muted">لا توجد مستندات</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card section-card">
+            <div class="card-header"><h6 class="mb-0 fw-bold"><i class="bi bi-sticky me-2" style="color:#F59E0B;"></i>الملاحظات</h6></div>
+            <div class="card-body">
+                {% if contract.status == 'active' %}
+                <form method="POST" action="{{ url_for('files.add_note', contract_id=contract.id) }}" class="mb-3">
+                    <div class="d-flex gap-2">
+                        <textarea name="content" class="form-control" rows="2" placeholder="أضف ملاحظة..."></textarea>
+                        <button type="submit" class="btn btn-warning text-dark align-self-end" style="white-space:nowrap;">
+                            <i class="bi bi-plus"></i> إضافة
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+                <div style="max-height:220px;overflow-y:auto;">
+                    {% for note in notes %}
+                    <div class="p-3 bg-light rounded-3 mb-2 position-relative">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <p class="mb-1" style="font-size:0.88rem;">{{ note.content }}</p>
+                                <small class="text-muted">{{ note.employee.full_name }} - {{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            </div>
+                            {% if contract.status == 'active' %}
+                            {% set note_content = note.content|replace('\n', ' ')|e %}
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="edit-note" data-note-id="{{ note.id }}" data-note-content="{{ note_content }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('files.delete_note', contract_id=contract.id, note_id=note.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذه الملاحظة؟');" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3 small">لا توجد ملاحظات</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Reapplication Attempts -->
+        {% if attempts|length > 0 %}
+        <div class="card section-card">
+            <div class="card-header"><h6 class="mb-0 fw-bold"><i class="bi bi-arrow-clockwise me-2" style="color:#7C3AED;"></i>محاولات إعادة التقديم</h6></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>#</th><th>الدولة</th><th>التكلفة</th><th>التاريخ</th><th>الموظف</th></tr></thead>
+                        <tbody>
+                            {% for att in attempts %}
+                            <tr>
+                                <td>{{ att.attempt_number }}</td>
+                                <td>{{ att.country }}</td>
+                                <td>{{ "{:,.0f}".format(att.total_cost) }} ج.م</td>
+                                <td><small>{{ att.created_at.strftime('%Y-%m-%d') }}</small></td>
+                                <td><small>{{ att.employee.full_name }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Timeline -->
+        <div class="card section-card">
+            <div class="card-header"><h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2" style="color:#64748B;"></i>سجل العمليات</h6></div>
+            <div class="card-body" style="max-height:350px;overflow-y:auto;">
+                {% for log in timeline %}
+                <div class="timeline-item">
+                    <div class="timeline-dot"><i class="bi bi-circle-fill" style="font-size:0.5rem;"></i></div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong style="font-size:0.87rem;">{{ log.action }}</strong>
+                            <small class="text-muted">{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        {% if log.description %}<p class="mb-0 text-muted small mt-1">{{ log.description }}</p>{% endif %}
+                        {% if log.user %}<small class="text-primary">{{ log.user.full_name }}</small>{% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-3 small">لا توجد عمليات مسجلة</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Add Payment Modal -->
+<div class="modal fade" id="addPaymentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#10B981;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>إضافة دفعة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.add_payment', contract_id=contract.id) }}">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">المبلغ <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="amount" class="form-control" step="0.01" min="0" required>
+                            <span class="input-group-text">ج.م</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">تاريخ الدفعة</label>
+                        <input type="datetime-local" name="payment_date" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ملاحظات</label>
+                        <input type="text" name="notes" class="form-control" placeholder="ملاحظة على الدفعة">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-success">إضافة الدفعة</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Payment Modal -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#F59E0B;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>تعديل دفعة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editPaymentForm">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">المبلغ <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="amount" id="editPaymentAmount" class="form-control" step="0.01" min="0" required>
+                            <span class="input-group-text">ج.م</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ملاحظات</label>
+                        <input type="text" name="notes" id="editPaymentNotes" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-warning text-dark">حفظ التعديل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Note Modal -->
+<div class="modal fade" id="editNoteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#F59E0B;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>تعديل الملاحظة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editNoteForm">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">الملاحظة</label>
+                        <textarea name="content" id="editNoteContent" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-warning text-dark">حفظ التعديل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Document Modal -->
+<div class="modal fade" id="uploadDocModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#2563EB;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>رفع مستند</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.upload_document', contract_id=contract.id) }}" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">اسم الملف <span class="text-danger">*</span></label>
+                        <input type="text" name="doc_name" class="form-control" placeholder="مثال: جواز السفر" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">اختر الملف <span class="text-danger">*</span></label>
+                        <input type="file" name="document" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" required>
+                        <small class="text-muted">PDF, JPG, PNG, DOCX, XLSX (حتى 16MB)</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">رفع</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Fingerprint Modal -->
+<div class="modal fade" id="fingerprintModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#EF4444;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-fingerprint me-2"></i>تعديل موعد التبصيم</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.update_fingerprint', contract_id=contract.id) }}">
+                <div class="modal-body p-4">
+                    {% set fp_parts = contract.fingerprint_location.split(' - ') if contract.fingerprint_location else [] %}
+                    {% set fp_provider = fp_parts[0] if fp_parts|length > 0 else '' %}
+                    {% set fp_city = fp_parts[1] if fp_parts|length > 1 else '' %}
+                    {% set fp_area = fp_parts[2] if fp_parts|length > 2 else '' %}
+                    <div class="mb-3">
+                        <label class="form-label">مكان التبصيم</label>
+                        <input type="hidden" name="fingerprint_location" id="fingerprintLocationInput" value="{{ contract.fingerprint_location or '' }}">
+                        <select id="fingerprintProviderSelect" class="form-select">
+                            <option value="">اختر جهة التبصيم</option>
+                            <option value="BLS" {{ 'selected' if fp_provider == 'BLS' else '' }}>BLS</option>
+                            <option value="VFS GLOBAL" {{ 'selected' if fp_provider == 'VFS GLOBAL' else '' }}>VFS GLOBAL</option>
+                            <option value="TLS CONTACT" {{ 'selected' if fp_provider == 'TLS CONTACT' else '' }}>TLS CONTACT</option>
+                            <option value="ALMA VIVA" {{ 'selected' if fp_provider == 'ALMA VIVA' else '' }}>ALMA VIVA</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="fingerprintCityGroup" style="display:none;">
+                        <label class="form-label">المدينة</label>
+                        <select id="fingerprintCitySelect" class="form-select">
+                            <option value="">اختر المدينة</option>
+                            <option value="القاهره" {{ 'selected' if fp_city == 'القاهره' else '' }}>القاهره</option>
+                            <option value="الاسكندريه" {{ 'selected' if fp_city == 'الاسكندريه' else '' }}>الاسكندريه</option>
+                            <option value="الغردقه" {{ 'selected' if fp_city == 'الغردقه' else '' }}>الغردقه</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="fingerprintAreaGroup" style="display:none;">
+                        <label class="form-label">المنطقة</label>
+                        <select id="fingerprintAreaSelect" class="form-select">
+                            <option value="">اختر المنطقة</option>
+                            <option value="الشيخ زايد" {{ 'selected' if fp_area == 'الشيخ زايد' else '' }}>الشيخ زايد</option>
+                            <option value="التجمع" {{ 'selected' if fp_area == 'التجمع' else '' }}>التجمع</option>
+                            <option value="الجيزه" {{ 'selected' if fp_area == 'الجيزه' else '' }}>الجيزه</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">موعد التبصيم</label>
+                        <input type="datetime-local" name="fingerprint_date" class="form-control"
+                            value="{{ contract.fingerprint_date.strftime('%Y-%m-%dT%H:%M') if contract.fingerprint_date else '' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-danger">حفظ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Visa Status Modal -->
+<div class="modal fade" id="visaModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#7C3AED;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-passport me-2"></i>تحديث حالة التأشيرة</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.update_visa_status', contract_id=contract.id) }}" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">الحالة <span class="text-danger">*</span></label>
+                        <select name="visa_status" class="form-select" id="visaStatusSelect" onchange="toggleVisaFiles()">
+                            <option value="under_review" {{ 'selected' if contract.visa_status == 'under_review' else '' }}>تحت المراجعة</option>
+                            <option value="accepted" {{ 'selected' if contract.visa_status == 'accepted' else '' }}>تم قبول التأشيرة</option>
+                            <option value="rejected" {{ 'selected' if contract.visa_status == 'rejected' else '' }}>تم رفض التأشيرة</option>
+                        </select>
+                    </div>
+                    <div id="visa_accepted_file" class="mb-3 d-none">
+                        <label class="form-label">صورة التأشيرة <small class="text-muted">(اختياري)</small></label>
+                        <input type="file" name="visa_image" class="form-control" accept="image/*,.pdf">
+                    </div>
+                    <div id="visa_rejected_file" class="mb-3 d-none">
+                        <label class="form-label">ملف سبب الرفض <small class="text-muted">(اختياري)</small></label>
+                        <input type="file" name="rejection_file" class="form-control" accept="image/*,.pdf">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">تحديث</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;border:2px solid #EF4444;">
+            <div class="modal-header" style="background:#EF4444;color:#fff;border-radius:14px 14px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>إغلاق الملف</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.close_contract', contract_id=contract.id) }}">
+                <div class="modal-body p-4">
+                    <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>هذا الإجراء سيغلق الملف نهائياً.</div>
+                    <div class="mb-3">
+                        <label class="form-label">المبلغ المسترد <small class="text-muted">(اختياري)</small></label>
+                        <div class="input-group">
+                            <input type="number" name="refund_amount" class="form-control" step="0.01" min="0" placeholder="0">
+                            <span class="input-group-text">ج.م</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-danger">إغلاق الملف</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reapply Modal -->
+<div class="modal fade" id="reapplyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header" style="background:#2563EB;color:#fff;border-radius:16px 16px 0 0;">
+                <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>التقديم مرة أخرى</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('files.reapply', contract_id=contract.id) }}">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label">الدولة الجديدة <span class="text-danger">*</span></label>
+                        <input type="text" name="country" class="form-control" value="{{ contract.country }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">تكلفة المعاملة الجديدة <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="total_cost" class="form-control" value="{{ contract.total_cost }}" step="0.01" min="0" required>
+                            <span class="input-group-text">ج.م</span>
+                        </div>
+                    </div>
+                    {% set reapply_fp_parts = contract.fingerprint_location.split(' - ') if contract.fingerprint_location else [] %}
+                    {% set reapply_fp_provider = reapply_fp_parts[0] if reapply_fp_parts|length > 0 else '' %}
+                    {% set reapply_fp_city = reapply_fp_parts[1] if reapply_fp_parts|length > 1 else '' %}
+                    {% set reapply_fp_area = reapply_fp_parts[2] if reapply_fp_parts|length > 2 else '' %}
+                    <div class="mb-3">
+                        <label class="form-label">مكان التبصيم الجديد</label>
+                        <input type="hidden" name="fingerprint_location" id="reapplyFingerprintLocationInput" value="{{ contract.fingerprint_location or '' }}">
+                        <select id="reapplyFingerprintProviderSelect" class="form-select">
+                            <option value="">اختر جهة التبصيم</option>
+                            <option value="BLS" {{ 'selected' if reapply_fp_provider == 'BLS' else '' }}>BLS</option>
+                            <option value="VFS GLOBAL" {{ 'selected' if reapply_fp_provider == 'VFS GLOBAL' else '' }}>VFS GLOBAL</option>
+                            <option value="TLS CONTACT" {{ 'selected' if reapply_fp_provider == 'TLS CONTACT' else '' }}>TLS CONTACT</option>
+                            <option value="ALMA VIVA" {{ 'selected' if reapply_fp_provider == 'ALMA VIVA' else '' }}>ALMA VIVA</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="reapplyFingerprintCityGroup" style="display:none;">
+                        <label class="form-label">المدينة</label>
+                        <select id="reapplyFingerprintCitySelect" class="form-select">
+                            <option value="">اختر المدينة</option>
+                            <option value="القاهره" {{ 'selected' if reapply_fp_city == 'القاهره' else '' }}>القاهره</option>
+                            <option value="الاسكندريه" {{ 'selected' if reapply_fp_city == 'الاسكندريه' else '' }}>الاسكندريه</option>
+                            <option value="الغردقه" {{ 'selected' if reapply_fp_city == 'الغردقه' else '' }}>الغردقه</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="reapplyFingerprintAreaGroup" style="display:none;">
+                        <label class="form-label">المنطقة</label>
+                        <select id="reapplyFingerprintAreaSelect" class="form-select">
+                            <option value="">اختر المنطقة</option>
+                            <option value="الشيخ زايد" {{ 'selected' if reapply_fp_area == 'الشيخ زايد' else '' }}>الشيخ زايد</option>
+                            <option value="التجمع" {{ 'selected' if reapply_fp_area == 'التجمع' else '' }}>التجمع</option>
+                            <option value="الجيزه" {{ 'selected' if reapply_fp_area == 'الجيزه' else '' }}>الجيزه</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">إنشاء محاولة جديدة</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openPrintWindow(html) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert('تعذر فتح نافذة الطباعة');
+        return null;
+    }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    return printWindow;
+}
+
+function printProfile() {
+    try {
+        const btn = document.getElementById('printProfileBtn');
+        if (!btn) {
+            console.warn('Print button not found');
+            return;
+        }
+
+        const companyName = btn.dataset.companyName || 'MOVIDA CONSULTANCY';
+        const companyLogo = (btn.dataset.companyLogo || '').replace(/\\/g, '/');
+        const fileNumber = btn.dataset.fileNumber || '';
+        const name = btn.dataset.name || '';
+        const phone = btn.dataset.phone || '';
+        const country = btn.dataset.country || '';
+        const location = btn.dataset.location || '';
+        const lastNote = btn.dataset.lastNote || '-';
+        const amount = btn.dataset.amount || '';
+        const paid = btn.dataset.paid || '';
+        const remaining = btn.dataset.remaining || '';
+        const created = btn.dataset.created || '';
+        const clientImg = (btn.dataset.clientImg || '').replace(/\\/g, '/');
+
+        const stampUrl = '/static/img/stamp.png';
+        const signUrl = '/static/img/signature.png';
+        const watermarkUrl = '/static/img/watermark.png';
+
+        const clientAvatar = clientImg
+            ? `<img src="${clientImg}" alt="client" style="width:100%;height:100%;object-fit:cover;">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#2563EB;background:#EFF6FF;">${name ? name.charAt(0) : ''}</div>`;
+
+        const printHtml = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>طباعة ملف العميل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Cairo',sans-serif;margin:0;padding:24px;background:#f8f4eb;color:#1f2937;}
+.print-page{max-width:900px;margin:0 auto;background:#fffaf2;border:1px solid #e8d9b7;border-radius:24px;padding:36px;box-shadow:0 16px 42px rgba(15,23,42,0.08);}
+.header{text-align:center;margin-bottom:24px;}
+.logo{max-width:190px;height:auto;margin:0 auto 14px;display:block;}
+.title{font-size:1.35rem;font-weight:900;color:#8a6b1f;margin:0 0 8px;}
+.subtitle{font-size:1rem;color:#7a6a45;margin:0;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+.card{background:linear-gradient(135deg,#fffdf8,#fef5dc);border:1px solid #e9d7a2;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(15,23,42,0.04);}
+.card-title{font-size:1rem;font-weight:800;color:#8a6b1f;margin:0 0 12px;}
+.info-row{margin-bottom:10px;}
+.info-label{display:block;font-size:0.82rem;color:#8b7b5d;margin-bottom:4px;}
+.info-value{font-size:0.95rem;font-weight:700;color:#1f2937;line-height:1.6;}
+.client-photo{width:84px;height:84px;border-radius:16px;overflow:hidden;border:3px solid #f3e4bf;float:left;margin-right:12px;}
+.client-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.summary-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;margin-top:18px;}
+.summary-card{background:linear-gradient(135deg,#ffffff,#fff5d8);border:1px solid #e9d7a2;border-radius:16px;padding:14px;text-align:center;}
+.summary-value{display:block;font-size:1.05rem;font-weight:900;color:#8a6b1f;margin-bottom:6px;}
+.summary-label{font-size:0.8rem;color:#6b7280;}
+.note-box{margin-top:18px;background:#fffdf8;border:1px solid #e9d7a2;border-radius:16px;padding:16px;}
+.note-title{font-weight:800;color:#8a6b1f;margin:0 0 8px;}
+.note-text{margin:0;color:#4b5563;line-height:1.7;white-space:pre-line;}
+.date-box{text-align:center;margin:18px 0 8px;}
+.date-pill{display:inline-block;padding:10px 18px;border-radius:999px;background:#fdf5df;border:1px solid #e9d7a2;color:#8a6b1f;font-weight:800;}
+@media print{body{padding:0;background:#fff;} .print-page{border:none;box-shadow:none;padding:24px;}}
+</style>
+</head>
+<body>
+<div class="print-page">
+  <div class="header">
+    ${companyLogo ? `<img src="${companyLogo}" alt="logo" class="logo">` : `<div style="font-size:1.3rem;font-weight:900;color:#8a6b1f;">${companyName}</div>`}
+    <h1 class="title">Confirmation of Engagement / تأكيد التعاقد</h1>
+    <p class="subtitle">Professional Contract Confirmation</p>
+  </div>
+
+  <div class="date-box">
+    <span class="date-pill">تاريخ التعاقد: ${created || '-'}</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3 class="card-title">Client Profile / ملف العميل</h3>
+      <div style="overflow:hidden;">
+        ${clientImg ? `<div class="client-photo"><img src="${clientImg}" alt="client"></div>` : ''}
+        <div class="info-row">
+          <span class="info-label">الاسم</span>
+          <div class="info-value">${name || '-'}</div>
+        </div>
+        <div class="info-row">
+          <span class="info-label">رقم الملف</span>
+          <div class="info-value">${fileNumber || '-'}</div>
+        </div>
+        <div class="info-row">
+          <span class="info-label">التليفون</span>
+          <div class="info-value">${phone || '-'}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Process Details / تفاصيل العملية</h3>
+      <div class="info-row">
+        <span class="info-label">الدولة</span>
+        <div class="info-value">${country || '-'}</div>
+      </div>
+      <div class="info-row">
+        <span class="info-label">مكان التبصيم</span>
+        <div class="info-value">${location || '-'}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <span class="summary-value">${amount || '-'}</span>
+      <span class="summary-label">إجمالي المعاملة</span>
+    </div>
+    <div class="summary-card">
+      <span class="summary-value">${paid || '-'}</span>
+      <span class="summary-label">المدفوع</span>
+    </div>
+    <div class="summary-card">
+      <span class="summary-value">${remaining || '-'}</span>
+      <span class="summary-label">المتبقي</span>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <h3 class="note-title">آخر ملاحظة / Latest Note</h3>
+    <p class="note-text">${lastNote || '-'}</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+        const printWindow = openPrintWindow(printHtml);
+        if (!printWindow) return;
+        setTimeout(() => {
+            try {
+                printWindow.print();
+                printWindow.close();
+            } catch (e) {
+                console.error('Print failed:', e);
+                alert('فشل الطباعة: ' + (e.message || e));
+            }
+        }, 350);
+    } catch (err) {
+        console.error('printProfile error', err);
+        alert('حدث خطأ أثناء محاولة الطباعة');
+    }
+}
+
+function editPayment(button) {
+    const id = button.dataset.paymentId;
+    const amount = button.dataset.paymentAmount;
+    const notes = button.dataset.paymentNotes || '';
+    document.getElementById('editPaymentAmount').value = amount;
+    document.getElementById('editPaymentNotes').value = notes;
+    document.getElementById('editPaymentForm').action = `/files/contract/{{ contract.id }}/edit-payment/${id}`;
+    new bootstrap.Modal(document.getElementById('editPaymentModal')).show();
+}
+function editNote(button) {
+    const id = button.dataset.noteId;
+    const content = button.dataset.noteContent || '';
+    document.getElementById('editNoteContent').value = content;
+    document.getElementById('editNoteForm').action = `/files/contract/{{ contract.id }}/edit-note/${id}`;
+    new bootstrap.Modal(document.getElementById('editNoteModal')).show();
+}
+function initEditButtons() {
+    document.querySelectorAll('[data-action="edit-payment"]').forEach(btn => btn.addEventListener('click', function() {
+        editPayment(this);
+    }));
+    document.querySelectorAll('[data-action="edit-note"]').forEach(btn => btn.addEventListener('click', function() {
+        editNote(this);
+    }));
+}
+function toggleVisaFiles() {
+    const val = document.getElementById('visaStatusSelect').value;
+    document.getElementById('visa_accepted_file').classList.toggle('d-none', val !== 'accepted');
+    document.getElementById('visa_rejected_file').classList.toggle('d-none', val !== 'rejected');
+}
+
+function parseFingerprintLocation(location) {
+    const parts = location ? location.split(' - ') : [];
+    return {
+        provider: parts[0] || '',
+        city: parts[1] || '',
+        area: parts[2] || ''
+    };
+}
+
+function updateFingerprintHidden(providerSelect, citySelect, areaSelect, hiddenInput) {
+    const provider = providerSelect.value;
+    const city = citySelect.value;
+    const area = areaSelect.value;
+    const parts = [];
+    if (provider) {
+        parts.push(provider);
+        if (city) {
+            parts.push(city);
+            if (city === 'القاهره' && area) {
+                parts.push(area);
+            }
+        }
+    }
+    hiddenInput.value = parts.join(' - ');
+}
+
+function refreshFingerprintGroups(providerSelect, citySelect, areaSelect, cityGroup, areaGroup) {
+    cityGroup.style.display = providerSelect.value ? 'block' : 'none';
+    if (providerSelect.value && citySelect.value === 'القاهره') {
+        areaGroup.style.display = 'block';
+    } else {
+        areaGroup.style.display = 'none';
+        areaSelect.value = '';
+    }
+}
+
+function initFingerprintModal(modalId, providerId, cityGroupId, cityId, areaGroupId, areaId, hiddenId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    const providerSelect = document.getElementById(providerId);
+    const citySelect = document.getElementById(cityId);
+    const areaSelect = document.getElementById(areaId);
+    const cityGroup = document.getElementById(cityGroupId);
+    const areaGroup = document.getElementById(areaGroupId);
+    const hiddenInput = document.getElementById(hiddenId);
+    if (!providerSelect || !citySelect || !areaSelect || !cityGroup || !areaGroup || !hiddenInput) return;
+
+    const current = parseFingerprintLocation(hiddenInput.value);
+    providerSelect.value = current.provider;
+    citySelect.value = current.city;
+    areaSelect.value = current.area;
+    refreshFingerprintGroups(providerSelect, citySelect, areaSelect, cityGroup, areaGroup);
+
+    providerSelect.addEventListener('change', function() {
+        refreshFingerprintGroups(providerSelect, citySelect, areaSelect, cityGroup, areaGroup);
+        updateFingerprintHidden(providerSelect, citySelect, areaSelect, hiddenInput);
+    });
+    citySelect.addEventListener('change', function() {
+        refreshFingerprintGroups(providerSelect, citySelect, areaSelect, cityGroup, areaGroup);
+        updateFingerprintHidden(providerSelect, citySelect, areaSelect, hiddenInput);
+    });
+    areaSelect.addEventListener('change', function() {
+        updateFingerprintHidden(providerSelect, citySelect, areaSelect, hiddenInput);
+    });
+
+    modal.addEventListener('shown.bs.modal', function() {
+        const currentParts = parseFingerprintLocation(hiddenInput.value);
+        providerSelect.value = currentParts.provider;
+        citySelect.value = currentParts.city;
+        areaSelect.value = currentParts.area;
+        refreshFingerprintGroups(providerSelect, citySelect, areaSelect, cityGroup, areaGroup);
+    });
+}
+
+initFingerprintModal('fingerprintModal', 'fingerprintProviderSelect', 'fingerprintCityGroup', 'fingerprintCitySelect', 'fingerprintAreaGroup', 'fingerprintAreaSelect', 'fingerprintLocationInput');
+initFingerprintModal('reapplyModal', 'reapplyFingerprintProviderSelect', 'reapplyFingerprintCityGroup', 'reapplyFingerprintCitySelect', 'reapplyFingerprintAreaGroup', 'reapplyFingerprintAreaSelect', 'reapplyFingerprintLocationInput');
+
+function initProgressBars() {
+    document.querySelectorAll('.progress-bar[data-progress]').forEach(el => {
+        const progress = parseInt(el.dataset.progress, 10);
+        if (!Number.isNaN(progress)) {
+            el.style.width = `${progress}%`;
+        }
+    });
+}
+
+// Initialize
+initEditButtons();
+initProgressBars();
+toggleVisaFiles();
+</script>
+{% endblock %}
