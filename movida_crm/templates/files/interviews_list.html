@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}قائمة المقابلات{% endblock %}
+{% block page_title %}قائمة المقابلات المحجوزة{% endblock %}
+
+{% block topbar_actions %}
+<a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm me-2">
+    <i class="bi bi-arrow-left me-1"></i>رجوع
+</a>
+<a href="{{ url_for('files.add_interview') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-calendar-plus me-1"></i>تسجيل حضور مقابلة
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <form method="GET" class="d-flex gap-2 flex-wrap align-items-end">
+            <div>
+                <label for="date_from" class="form-label small fw-bold mb-1">من التاريخ</label>
+                <input type="date" name="date_from" id="date_from" class="form-control form-control-sm" value="{{ date_from }}" style="width:160px;">
+            </div>
+            <div>
+                <label for="date_to" class="form-label small fw-bold mb-1">إلى التاريخ</label>
+                <input type="date" name="date_to" id="date_to" class="form-control form-control-sm" value="{{ date_to }}" style="width:160px;">
+            </div>
+            <div>
+                <label for="sales_employee_id" class="form-label small fw-bold mb-1">موظف المبيعات</label>
+                <select name="sales_employee_id" id="sales_employee_id" class="form-select form-select-sm" style="width:220px;">
+                    <option value="">جميع الموظفين</option>
+                    {% for emp in sales_employees %}
+                        <option value="{{ emp.id }}" {% if selected_sales_employee_id == emp.id|string %}selected{% endif %}>{{ emp.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">تصفية</button>
+            {% if date_from or date_to or selected_sales_employee_id %}<a href="{{ url_for('files.interviews_list') }}" class="btn btn-outline-secondary btn-sm">مسح</a>{% endif %}
+            <span class="text-muted small ms-auto">{{ interviews|length }} مقابلة</span>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>الاسم</th>
+                        <th>الهاتف</th>
+                        <th>الدولة</th>
+                        <th>الموعد</th>
+                        <th>الموظف</th>
+                        <th>الملاحظات</th>
+                        <th>الإجراء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for iv in interviews %}
+                    <tr>
+                        <td class="fw-bold">
+                            {% if iv.__class__.__name__ == 'Interview' %}
+                                {{ iv.client_name or '-' }}
+                            {% else %}
+                                {{ iv.full_name or '-' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if iv.__class__.__name__ == 'Interview' %}
+                                {{ iv.client_phone or '-' }}
+                            {% else %}
+                                {{ iv.phone or '-' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if iv.__class__.__name__ == 'Interview' %}
+                                {{ iv.country or '-' }}
+                            {% else %}
+                                {{ iv.get_countries_list()|join(', ') or '-' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-warning text-dark">
+                                {{ iv.interview_date.strftime('%Y-%m-%d %H:%M') if iv.interview_date else '-' }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ iv.sales_employee.full_name if iv.sales_employee else '-' }}
+                        </td>
+                        <td>
+                            <small class="text-muted text-truncate" style="max-width:250px; display:block;">
+                                {{ iv.notes or '-' }}
+                            </small>
+                        </td>
+                        <td>
+                            {% if iv.__class__.__name__ == 'Interview' %}
+                                <a href="{{ url_for('files.add_interview') }}" class="btn btn-outline-primary btn-sm" title="عرض التفاصيل">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            {% else %}
+                                {% if iv.interview_status == 'missed' %}
+                                    <span class="badge bg-danger">لم يحضر</span>
+                                {% elif iv.interview_status == 'attended' %}
+                                    <span class="badge bg-success">{{ iv.get_interview_result_display() }}</span>
+                                {% else %}
+                                    <a href="{{ url_for('files.sales_interview_action', customer_id=iv.id) }}" class="btn btn-outline-secondary btn-sm" title="إجراء">
+                                        <i class="bi bi-three-dots"></i>
+                                    </a>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center py-5 text-muted">
+                        <i class="bi bi-calendar-x" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+                        لا توجد مقابلات محجوزة
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
