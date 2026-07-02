@@ -185,6 +185,43 @@
             thead th { background: #f8f9fa !important; -webkit-print-color-adjust: exact; }
             .page-break { page-break-after: always; }
         }
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 2100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 26px 28px;
+            text-align: center;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+            max-width: 340px;
+            width: 100%;
+        }
+        .loading-card .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .loading-card .loading-text {
+            margin-top: 18px;
+            font-size: 1rem;
+            font-weight: 800;
+            color: #0F172A;
+        }
+        .loading-card .loading-subtext {
+            margin-top: 8px;
+            color: #475569;
+            font-size: 0.92rem;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -293,7 +330,7 @@
                 <div id="notif-list">
                     {% if topbar_notifications %}
                         {% for notif in topbar_notifications %}
-                        <div class="p-2 border-bottom" style="background-color: {{ notif.bg if notif.bg is defined else (notif.type == 'interview' and '#fef3c7' or notif.type == 'followup' and '#dbeafe' or '#f0fdf4') }}; cursor: pointer;" title="{{ notif.message }}">
+                        <div class="p-2 border-bottom" style="background-color: {{ notif.bg if notif.bg is defined else ('#fef3c7' if notif.type == 'interview' else '#dbeafe' if notif.type == 'followup' else '#f0fdf4') }}; cursor: pointer;" title="{{ notif.message }}">
                             <div>
                                 <strong style="font-size:0.85rem;">
                                     <i class="bi {% if notif.type == 'interview' %}bi-calendar-check{% elif notif.type == 'followup' %}bi-arrow-repeat{% else %}bi-fingerprint{% endif %} me-1"></i>
@@ -320,6 +357,14 @@
         </div>
     </div>
     {% endif %}
+
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-card">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="loading-text">جاري التحميل...</div>
+            <div class="loading-subtext">يرجى الانتظار حتى تكتمل العملية.</div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <div class="{% if current_user.is_authenticated %}main-content{% else %}container-fluid p-0{% endif %}">
@@ -380,6 +425,51 @@
                 console.warn('SW registration failed:', err);
             });
         }
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        function showLoadingOverlay() {
+            loadingOverlay?.classList.add('active');
+        }
+
+        function hideLoadingOverlay() {
+            loadingOverlay?.classList.remove('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', hideLoadingOverlay);
+
+        document.addEventListener('submit', function(event) {
+            const form = event.target;
+            if (form.tagName.toLowerCase() !== 'form') return;
+            if (form.dataset.noLoading !== undefined) return;
+            showLoadingOverlay();
+        });
+
+        document.addEventListener('click', function(event) {
+            const clickedElement = event.target instanceof Element ? event.target : event.target.parentElement;
+            if (!clickedElement) return;
+
+            const loadingTarget = clickedElement.closest('[data-loading]');
+            if (loadingTarget) {
+                showLoadingOverlay();
+                return;
+            }
+
+            const link = clickedElement.closest('a[href]');
+            if (!link) return;
+
+            const href = link.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+            if (link.target === '_blank') return;
+            if (link.dataset.noLoading !== undefined) return;
+            if (link.matches('[data-bs-toggle], [data-bs-target], [data-bs-dismiss]')) return;
+
+            showLoadingOverlay();
+        });
+
+        window.addEventListener('beforeunload', function() {
+            showLoadingOverlay();
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>
