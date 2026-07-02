@@ -41,7 +41,7 @@
                             <span class="badge {{ role_badges.get(log.user.role, 'bg-secondary') }}" style="font-size:0.7rem;">{{ log.user.get_role_display() }}</span>
                             {% else %}-{% endif %}
                         </td>
-                        <td><span class="badge bg-primary bg-opacity-15 text-primary" style="font-size:0.72rem;">{{ log.get_action_display() }}</span></td>
+                        <td><span class="badge bg-white text-primary border border-primary" style="font-size:0.72rem;">{{ log.get_action_display() }}</span></td>
                         <td style="max-width:220px;"><small class="text-muted text-truncate d-block">{{ log.description or '-' }}</small></td>
                         <td>
                             {% if log.reference_id and log.reference_type %}
