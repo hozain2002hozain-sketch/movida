@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+{% block title %}المبيعات{% endblock %}
+{% block page_title %}لوحة المبيعات{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('sales.add_customer') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-person-plus me-1"></i>إضافة عميل
+</a>
+<a href="{{ url_for('sales.customers_list') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-search me-1"></i>بحث
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 sales-page">
+    <!-- Left sidebar: received numbers -->
+    <div class="col-lg-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-phone-incoming me-2" style="color:#2563EB;"></i>أرقام من السوشيال</h6>
+            </div>
+            <div class="card-body p-0" style="max-height:400px;overflow-y:auto;">
+                {% for number in received_numbers %}
+                <div class="p-3 border-bottom d-flex align-items-center justify-content-between" style="gap:8px;">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.9rem;">{{ number.phone }}</div>
+                        <small class="text-muted">{{ number.platform }}</small>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <a href="{{ url_for('sales.add_customer', phone=number.phone, social_id=number.id) }}"
+                           class="btn btn-primary btn-sm" title="إضافة كعميل">
+                            <i class="bi bi-person-plus"></i>
+                        </a>
+                        <button class="btn btn-outline-warning btn-sm" title="لم يتم الرد"
+                            onclick="submitNoAnswer('{{ number.phone }}', {{ number.id }})">
+                            <i class="bi bi-telephone-x"></i>
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center p-4 text-muted small">
+                    <i class="bi bi-inbox" style="font-size:1.8rem;display:block;margin-bottom:8px;"></i>
+                    لا توجد أرقام جديدة
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if no_answer %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-telephone-x me-2" style="color:#EF4444;"></i>لم يتم الرد</h6>
+            </div>
+            <div class="card-body p-0" style="max-height:250px;overflow-y:auto;">
+                {% for na in no_answer %}
+                <div class="p-2 border-bottom d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.85rem;">{{ na.phone }}</div>
+                        <small class="text-muted">{{ na.added_at.strftime('%m-%d %H:%M') }}</small>
+                    </div>
+                    <a href="{{ url_for('sales.add_customer', phone=na.phone) }}" class="btn btn-outline-primary btn-sm" style="font-size:0.75rem;">
+                        تحويل
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main area -->
+    <div class="col-lg-9">
+        <!-- Upcoming interviews -->
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-calendar-event me-2" style="color:#F59E0B;"></i>أقرب المقابلات</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-sm align-middle mb-0">
+                    <thead><tr><th>الاسم</th><th style="min-width:140px;">الهاتف</th><th style="min-width:160px;">موعد المقابلة</th><th style="min-width:110px;">الإجراءات</th></tr></thead>
+                    <tbody>
+                        {% for c in upcoming_interviews %}
+                        <tr>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="text-decoration-none fw-bold">{{ c.full_name }}</a></td>
+                            <td class="text-nowrap">{{ c.phone }}</td>
+                            <td class="text-nowrap">
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-calendar me-1"></i>{{ c.interview_date.strftime('%d-%m-%Y %H:%M') if c.interview_date else '-' }}
+                                </span>
+                            </td>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="btn btn-outline-primary btn-sm">عرض</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">لا توجد مقابلات قادمة</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Sales interviews overview -->
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2" style="color:#0EA5E9;"></i>مقابلات موظف المبيعات</h6>
+                {% if sales_interviews_count > 5 %}
+                <a href="{{ url_for('sales.interviews_list') }}" class="btn btn-outline-secondary btn-sm">إظهار الكل</a>
+                {% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th style="min-width:140px;">الهاتف</th>
+                            <th style="min-width:180px;">موعد المقابلة</th>
+                            <th style="min-width:120px;">الحالة</th>
+                            <th style="min-width:120px;">النتيجة</th>
+                            <th style="width:90px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in sales_interviews %}
+                        <tr>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="text-decoration-none fw-bold">{{ c.full_name }}</a></td>
+                            <td class="text-nowrap">{{ c.phone }}</td>
+                            <td class="text-nowrap">
+                                <span class="badge bg-warning text-dark">
+                                    {{ c.interview_date.strftime('%d-%m-%Y %H:%M') if c.interview_date else '-' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if c.interview_status == 'active' and c.interview_date and c.interview_date < now %}
+                                <span class="badge bg-danger">مجدولة - متأخرة</span>
+                                {% else %}
+                                <span class="badge bg-{{ 'warning' if c.interview_status == 'active' else 'secondary' if c.interview_status == 'missed' else 'success' }} text-dark">
+                                    {{ c.get_interview_status_display() }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.interview_result %}
+                                <span class="badge bg-info text-dark">{{ c.get_interview_result_display() }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark">-</span>
+                                {% endif %}
+                            </td>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="btn btn-outline-primary btn-sm">عرض</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">لا توجد مقابلات مسجلة</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent customers -->
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-people me-2" style="color:#10B981;"></i>آخر العملاء المضافين</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-sm align-middle mb-0">
+                    <thead><tr><th>الاسم</th><th style="min-width:120px;">الهاتف</th><th>الدول</th><th>المصدر</th><th>الاهتمام</th><th style="min-width:90px;">التاريخ</th><th style="width:90px;"></th></tr></thead>
+                    <tbody>
+                        {% for c in recent_customers %}
+                        <tr>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="fw-bold text-decoration-none">{{ c.full_name }}</a></td>
+                            <td>{{ c.phone }}</td>
+                            <td><small>{{ c.get_countries_list()|join(', ') or '-' }}</small></td>
+                            <td>
+                                <span class="badge {{ 'bg-info' if c.source == 'social' else 'bg-secondary' }}">
+                                    {{ c.get_source_display() }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if c.interest_level == 'interested' %}
+                                <span class="badge bg-success">مهتم {{ c.interest_percentage }}%</span>
+                                {% elif c.interest_level == 'not_interested' %}
+                                <span class="badge bg-danger">غير مهتم</span>
+                                {% else %}
+                                <span class="badge bg-secondary">-</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ c.created_at.strftime('%m-%d') }}</small></td>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="btn btn-outline-primary btn-sm">عرض</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-3">لا يوجد عملاء بعد</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent followups -->
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2" style="color:#7C3AED;"></i>آخر المتابعات</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped table-sm align-middle mb-0">
+                    <thead><tr><th>الاسم</th><th style="min-width:120px;">الهاتف</th><th style="min-width:170px;">موعد المتابعة</th><th style="width:90px;"></th></tr></thead>
+                    <tbody>
+                        {% for c in recent_followups %}
+                        <tr>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="fw-bold text-decoration-none">{{ c.full_name }}</a></td>
+                            <td>{{ c.phone }}</td>
+                            <td>
+                                <span class="badge bg-primary">{{ c.followup_date.strftime('%Y-%m-%d %H:%M') if c.followup_date else '-' }}</span>
+                            </td>
+                            <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="btn btn-outline-primary btn-sm">عرض</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">لا توجد متابعات</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden no-answer form -->
+<form id="noAnswerForm" method="POST" action="{{ url_for('sales.no_answer') }}" style="display:none;">
+    <input type="hidden" name="phone" id="naPhone">
+    <input type="hidden" name="social_number_id" id="naSocialId">
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.sales-page .table th,
+.sales-page .table td {
+    vertical-align: middle;
+}
+.sales-page .sales-filter-form {
+    max-width: 100%;
+}
+.sales-page .sales-filter-input {
+    min-width: 145px;
+    max-width: 190px;
+}
+.sales-page .card-header .btn {
+    white-space: nowrap;
+}
+.sales-page .card {
+    overflow: hidden;
+}
+.sales-page .table-responsive {
+    min-height: 1px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitNoAnswer(phone, socialId) {
+    if (!confirm(`تسجيل عدم الرد على ${phone}؟`)) return;
+    document.getElementById('naPhone').value = phone;
+    document.getElementById('naSocialId').value = socialId || '';
+    document.getElementById('noAnswerForm').submit();
+}
+
+function markNotifRead(notifId) {
+    // إذا كان الإشعار ديناميكي (dynamic_*) فلا تحاول حذفه
+    if (notifId.startsWith('dynamic_')) {
+        return;
+    }
+    
+    // استخرج ID الفعلي من db_123 → 123
+    const actualId = notifId.replace('db_', '');
+    
+    fetch(`{{ url_for('sales.home') }}notifications/mark-read/${actualId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

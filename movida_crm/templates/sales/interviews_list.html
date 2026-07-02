@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}كل مقابلات المبيعات{% endblock %}
+{% block page_title %}كل مقابلات موظف المبيعات{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('sales.home') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>رجوع
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h6 class="mb-0 fw-bold">كل مقابلات موظف المبيعات</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-striped table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>الاسم</th>
+                    <th style="min-width:140px;">الهاتف</th>
+                    <th style="min-width:180px;">موعد المقابلة</th>
+                    <th style="min-width:120px;">الحالة</th>
+                    <th style="min-width:120px;">النتيجة</th>
+                    <th style="width:90px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in sales_interviews %}
+                <tr>
+                    <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="text-decoration-none fw-bold">{{ c.full_name }}</a></td>
+                    <td class="text-nowrap">{{ c.phone }}</td>
+                    <td class="text-nowrap">
+                        <span class="badge bg-warning text-dark">
+                            {{ c.interview_date.strftime('%d-%m-%Y %H:%M') if c.interview_date else '-' }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if c.interview_status == 'active' and c.interview_date and c.interview_date < now %}
+                        <span class="badge bg-danger">مجدولة - متأخرة</span>
+                        {% else %}
+                        <span class="badge bg-{{ 'warning' if c.interview_status == 'active' else 'secondary' if c.interview_status == 'missed' else 'success' }} text-dark">
+                            {{ c.get_interview_status_display() }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if c.interview_result %}
+                        <span class="badge bg-info text-dark">{{ c.get_interview_result_display() }}</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">-</span>
+                        {% endif %}
+                    </td>
+                    <td><a href="{{ url_for('sales.customer_profile', customer_id=c.id) }}" class="btn btn-outline-primary btn-sm">عرض</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-3">لا توجد مقابلات مسجلة</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
