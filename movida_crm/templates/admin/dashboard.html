@@ -109,7 +109,7 @@
                             <span class="badge bg-light text-dark border">{{ log.user.full_name }}</span>
                             {% else %}<span class="text-muted">-</span>{% endif %}
                         </td>
-                        <td><span class="badge bg-primary bg-opacity-15 text-primary">{{ log.get_action_display() }}</span></td>
+                        <td><span class="badge bg-white text-primary border border-primary">{{ log.get_action_display() }}</span></td>
                         <td><small class="text-muted">{{ log.description[:60] if log.description else '-' }}</small></td>
                         <td><small class="text-muted font-monospace">{{ log.ip_address or '-' }}</small></td>
                         <td><small class="text-muted">{{ log.created_at.strftime('%m-%d %H:%M') }}</small></td>
