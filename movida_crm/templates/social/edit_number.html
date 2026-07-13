@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}تعديل رقم اجتماعي{% endblock %}
+{% block page_title %}تعديل رقم اجتماعي{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card" style="border-radius:16px;">
+                <div class="card-header" style="background:#F59E0B;color:#fff;border-radius:16px 16px 0 0;">
+                    <h5 class="mb-0"><i class="bi bi-pencil me-2"></i>تعديل رقم اجتماعي</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">رقم الهاتف <span class="text-danger">*</span></label>
+                            <input type="text" name="phone" class="form-control form-control-lg" value="{{ number.phone }}" placeholder="أدخل رقم الهاتف الجديد" required autofocus>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">المنصة</label>
+                            <div class="p-3 bg-light rounded">
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-{{ 
+                                        'facebook' if number.platform == 'Facebook' else
+                                        'instagram' if number.platform == 'Instagram' else
+                                        'tiktok' if number.platform == 'TikTok' else
+                                        'whatsapp' if number.platform == 'WhatsApp' else
+                                        'three-dots'
+                                    }} me-1"></i>
+                                    {{ number.get_platform_display() }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">الموظف المسؤول</label>
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted">{{ number.employee.full_name }}</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">معلومات الإضافة</label>
+                            <div class="p-3 bg-light rounded text-muted small">
+                                <div>
+                                    <strong>تاريخ الإضافة:</strong> {{ number.added_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                </div>
+                                <div class="mt-2">
+                                    <strong>الحالة:</strong> 
+                                    {% if number.converted_to_customer %}
+                                        <span class="badge bg-success">تم التحويل</span>
+                                    {% elif number.is_sent %}
+                                        <span class="badge bg-primary">تم الإرسال - {{ number.sent_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">جديد</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="bi bi-check-lg me-2"></i>حفظ التعديل
+                            </button>
+                            <a href="{{ url_for('social.home') }}" class="btn btn-secondary">
+                                <i class="bi bi-x-lg me-1"></i>إلغاء
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
